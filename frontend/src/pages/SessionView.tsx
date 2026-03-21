@@ -2832,6 +2832,18 @@ const SessionView: React.FC = () => {
         }
     };
 
+    const copySessionCode = async () => {
+        if (!session?.code) return;
+
+        try {
+            await navigator.clipboard.writeText(session.code);
+            setToast({ message: `Copied ${session.code}!`, type: 'success' });
+        } catch (err) {
+            console.error('Failed to copy session code:', err);
+            setToast({ message: 'Failed to copy session code', type: 'error' });
+        }
+    };
+
 
 
     const handleExportPDF = () => {
@@ -3035,10 +3047,23 @@ const SessionView: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                    <div className="glass-card" style={{ padding: '0.4rem 1rem', borderRadius: 'var(--radius-md)', margin: 0, border: '1px solid var(--color-primary-light)' }}>
+                    <button
+                        type="button"
+                        className="glass-card"
+                        onClick={copySessionCode}
+                        title={`Copy session code ${session.code}`}
+                        style={{
+                            padding: '0.4rem 1rem',
+                            borderRadius: 'var(--radius-md)',
+                            margin: 0,
+                            border: '1px solid var(--color-primary-light)',
+                            background: 'transparent',
+                            cursor: 'pointer'
+                        }}
+                    >
                         <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'block', lineHeight: 1 }}>CODE</span>
                         <span style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--color-primary-light)' }}>{session.code}</span>
-                    </div>
+                    </button>
 
 
 
@@ -3754,7 +3779,20 @@ const SessionView: React.FC = () => {
                         </div>
 
                         <div style={{ marginTop: '1.5rem' }}>
-                            <span style={{ fontSize: '1.8rem', fontWeight: '800', letterSpacing: '3px', textTransform: 'uppercase' }}>{session.code}</span>
+                            <button
+                                type="button"
+                                onClick={copySessionCode}
+                                title={`Copy session code ${session.code}`}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: 0,
+                                    cursor: 'pointer',
+                                    color: 'inherit'
+                                }}
+                            >
+                                <span style={{ fontSize: '1.8rem', fontWeight: '800', letterSpacing: '3px', textTransform: 'uppercase' }}>{session.code}</span>
+                            </button>
                             <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.1rem' }}>SESSION CODE</div>
                         </div>
                     </div>
