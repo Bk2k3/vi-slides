@@ -1,79 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { socketService } from '../services/socketService';
 
-interface Message {
+export interface Message {
     sender: {
         id: string;
         name: string;
     };
     message: string;
-    timestamp: Date;
+    timestamp: Date | string;
     isMe?: boolean;
 }
 
 interface PrivateChatProps {
     recipient: { id: string; name: string } | null;
     onClose: () => void;
-    currentUser: any;
-    sessionCode: string;
+    messages: Message[];
+    onSendMessage: (message: string, recipient: { id: string; name: string }) => void;
 }
 
-const PrivateChat: React.FC<PrivateChatProps> = ({ recipient, onClose, currentUser, sessionCode }) => {
+const PrivateChat: React.FC<PrivateChatProps> = ({ recipient, onClose, messages, onSendMessage }) => {
     const [message, setMessage] = useState('');
-    const [chatHistory, setChatHistory] = useState<Message[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        // Listen for incoming messages
-        socketService.onReceivePrivateMsg((data) => {
-            // Only add if it's from the person we are currently chatting with
-            // OR we can implement a global store for all private messages.
-            // For now, let's just show messages from anyone in this box if they are the recipient or sender.
-            if (data.sender.id === recipient?.id || data.sender.id === currentUser.id) {
-                setChatHistory(prev => [...prev, {
-                    sender: data.sender,
-                    message: data.message,
-                    timestamp: data.timestamp,
-                    isMe: data.sender.id === currentUser.id
-                }]);
-            }
-        });
-
-        return () => {
-            socketService.offReceivePrivateMsg();
-        };
-    }, [recipient, currentUser]);
 
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [chatHistory]);
+    }, [messages]);
 
     const handleSend = (e: React.FormEvent) => {
         e.preventDefault();
         if (!message.trim() || !recipient) return;
 
-        const msgData = {
-            recipientId: recipient.id,
-            message: message.trim(),
-            sender: {
-                id: currentUser.id,
-                name: currentUser.name,
-                sessionCode
-            }
-        };
-
-        socketService.emitPrivateMsg(msgData);
-
-        // Add to local history
-        setChatHistory(prev => [...prev, {
-            sender: { id: currentUser.id, name: currentUser.name },
-            message: message.trim(),
-            timestamp: new Date(),
-            isMe: true
-        }]);
-
+        onSendMessage(message.trim(), recipient);
         setMessage('');
     };
 
@@ -112,12 +70,12 @@ const PrivateChat: React.FC<PrivateChatProps> = ({ recipient, onClose, currentUs
 
             {/* Chat Body */}
             <div ref={scrollRef} style={{ flex: 1, padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {chatHistory.length === 0 ? (
+                {messages.length === 0 ? (
                     <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '2rem' }}>
                         Say hi to {recipient.name}! 👋
                     </p>
                 ) : (
-                    chatHistory.map((m, i) => (
+                    messages.map((m, i) => (
                         <div key={i} style={{
                             alignSelf: m.isMe ? 'flex-end' : 'flex-start',
                             maxWidth: '80%',

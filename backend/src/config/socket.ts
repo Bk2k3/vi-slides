@@ -8,6 +8,80 @@ let io: SocketServer;
 
 // Map to track socket -> user/session details for disconnect handling
 const socketMap = new Map<string, { userId: string; name: string; email: string; sessionCode: string }>();
+const understandingStateMap = new Map<string, Map<string, UnderstandingStateEntry>>();
+const handRaiseStateMap = new Map<string, Map<string, HandRaiseStateEntry>>();
+
+type NormalizedSocketUser = {
+    id: string;
+    name: string;
+    email?: string;
+};
+
+type UnderstandingStateEntry = {
+    participantId: string;
+    socketId: string;
+    understanding: 'confused' | 'neutral' | 'understanding';
+    user: NormalizedSocketUser;
+};
+
+type HandRaiseStateEntry = {
+    participantId: string;
+    socketId: string;
+    isRaised: boolean;
+    user: NormalizedSocketUser;
+};
+
+const stringifyId = (value: any): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return value.toString();
+    if (typeof value.toString === 'function') return value.toString();
+    return '';
+};
+
+const normalizeUser = (user: any, fallbackId: string): NormalizedSocketUser => ({
+    id: stringifyId(user?._id) || stringifyId(user?.id) || fallbackId,
+    name: user?.name || 'Participant',
+    email: user?.email
+});
+
+const getSessionState = <T>(store: Map<string, Map<string, T>>, sessionCode: string): Map<string, T> => {
+    let sessionState = store.get(sessionCode);
+    if (!sessionState) {
+        sessionState = new Map<string, T>();
+        store.set(sessionCode, sessionState);
+    }
+    return sessionState;
+};
+
+const removeParticipantFromSessionState = <T>(store: Map<string, Map<string, T>>, sessionCode: string, participantId: string): boolean => {
+    const sessionState = store.get(sessionCode);
+    if (!sessionState) return false;
+
+    const deleted = sessionState.delete(participantId);
+    if (sessionState.size === 0) {
+        store.delete(sessionCode);
+    }
+
+    return deleted;
+};
+
+const buildEngagementStatePayload = (sessionCode: string) => ({
+    understanding: Array.from((understandingStateMap.get(sessionCode) || new Map()).values()),
+    handRaised: Array.from((handRaiseStateMap.get(sessionCode) || new Map()).values())
+});
+
+const emitEngagementState = (sessionCode: string, socket?: Socket) => {
+    const payload = buildEngagementStatePayload(sessionCode);
+    if (socket) {
+        socket.emit('engagement_state_sync', payload);
+        return;
+    }
+
+    if (io) {
+        io.to(sessionCode).emit('engagement_state_sync', payload);
+    }
+};
 
 export const initSocket = (server: HttpServer) => {
     io = new SocketServer(server, {
@@ -75,6 +149,8 @@ export const initSocket = (server: HttpServer) => {
                     console.error('Error recording attendance:', error);
                 }
             }
+
+            emitEngagementState(sessionCode, socket);
         });
 
         // Leave a session room matches logic for disconnect essentially
@@ -108,19 +184,41 @@ export const initSocket = (server: HttpServer) => {
 
         // Engagement Features
         socket.on('student_understanding_update', ({ sessionCode, understanding, user }) => {
-            socket.to(sessionCode).emit('teacher_understanding_update', {
+            const normalizedUser = normalizeUser(user, socket.id);
+            const participantId = normalizedUser.id || socket.id;
+            const update: UnderstandingStateEntry = {
+                participantId,
                 socketId: socket.id,
                 understanding,
-                user
-            });
+                user: normalizedUser
+            };
+
+            getSessionState(understandingStateMap, sessionCode).set(participantId, update);
+            socket.to(sessionCode).emit('teacher_understanding_update', update);
         });
 
         socket.on('student_hand_raise', ({ sessionCode, isRaised, user }) => {
-            socket.to(sessionCode).emit('teacher_hand_raise', {
+            const normalizedUser = normalizeUser(user, socket.id);
+            const participantId = normalizedUser.id || socket.id;
+            const update: HandRaiseStateEntry = {
+                participantId,
                 socketId: socket.id,
                 isRaised,
-                user
-            });
+                user: normalizedUser
+            };
+
+            if (isRaised) {
+                getSessionState(handRaiseStateMap, sessionCode).set(participantId, update);
+            } else {
+                removeParticipantFromSessionState(handRaiseStateMap, sessionCode, participantId);
+            }
+
+            socket.to(sessionCode).emit('teacher_hand_raise', update);
+        });
+
+        socket.on('request_engagement_state', ({ sessionCode }) => {
+            if (!sessionCode) return;
+            emitEngagementState(sessionCode, socket);
         });
 
         // Private Messaging
@@ -257,6 +355,13 @@ const handleUserLeave = async (socketId: string) => {
         }
     } catch (error) {
         console.error('Error recording leave time:', error);
+    }
+
+    const understandingChanged = removeParticipantFromSessionState(understandingStateMap, sessionCode, userId);
+    const handRaiseChanged = removeParticipantFromSessionState(handRaiseStateMap, sessionCode, userId);
+
+    if (understandingChanged || handRaiseChanged) {
+        emitEngagementState(sessionCode);
     }
 
     // Clear from map

@@ -2529,10 +2529,22 @@ import { pollService, Poll } from '../services/pollService';
 import Toast from '../components/Toast';
 import Whiteboard from '../components/Whiteboard';
 import EngagementControls from '../components/EngagementControls';
-import EngagementTeacherView from '../components/EngagementTeacherView';
+import EngagementTeacherView, { HandRaiseUpdate, UnderstandingUpdate } from '../components/EngagementTeacherView';
 import Leaderboard from '../components/Leaderboard';
-import PrivateChat from '../components/PrivateChat';
+import PrivateChat, { Message as PrivateChatMessage } from '../components/PrivateChat';
 import Confetti from '../components/Confetti';
+
+const getParticipantId = (participant: any): string => {
+    const value = participant?.id || participant?._id || participant?.participantId || '';
+    if (!value) return '';
+    return typeof value === 'string' ? value : value.toString();
+};
+
+const normalizeParticipant = (participant: any): { id: string; name: string; email?: string } => ({
+    id: getParticipantId(participant),
+    name: participant?.name || 'Participant',
+    email: participant?.email
+});
 
 const SessionView: React.FC = () => {
     const { code } = useParams<{ code: string }>();
@@ -2550,10 +2562,13 @@ const SessionView: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
     const [showWhiteboard, setShowWhiteboard] = useState(false);
     const [activePrivateChatRecipient, setActivePrivateChatRecipient] = useState<{ id: string; name: string } | null>(null);
+    const [privateMessages, setPrivateMessages] = useState<Record<string, PrivateChatMessage[]>>({});
     const [pulseCheckActive, setPulseCheckActive] = useState(false);
     const [pulseCheckClicked, setPulseCheckClicked] = useState(false);
     const [pulseCheckTimer, setPulseCheckTimer] = useState(10);
     const [showConfetti, setShowConfetti] = useState(false);
+    const [understandingMap, setUnderstandingMap] = useState<Map<string, UnderstandingUpdate>>(new Map());
+    const [handRaisedMap, setHandRaisedMap] = useState<Map<string, HandRaiseUpdate>>(new Map());
 
     // New State for 3-Column Layout
     const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
@@ -2756,7 +2771,143 @@ const SessionView: React.FC = () => {
         };
 
         fetchData();
-    }, [code, navigate]);
+    }, [code, navigate, user]);
+
+    useEffect(() => {
+        if (!code || !session?._id) return;
+
+        const currentUserId = getParticipantId(user);
+
+        socketService.offEngagementEvents();
+        socketService.offEngagementStateSync();
+        socketService.offReceivePrivateMsg();
+
+        if (isTeacher) {
+            socketService.onEngagementStateSync((data: any) => {
+                const nextUnderstandingMap = new Map<string, UnderstandingUpdate>();
+                const nextHandRaisedMap = new Map<string, HandRaiseUpdate>();
+
+                (data?.understanding || []).forEach((entry: any) => {
+                    const normalizedUser = normalizeParticipant(entry.user);
+                    const participantId = entry.participantId || normalizedUser.id || entry.socketId;
+                    if (!participantId) return;
+
+                    nextUnderstandingMap.set(participantId, {
+                        participantId,
+                        socketId: entry.socketId,
+                        understanding: entry.understanding,
+                        user: normalizedUser
+                    });
+                });
+
+                (data?.handRaised || []).forEach((entry: any) => {
+                    const normalizedUser = normalizeParticipant(entry.user);
+                    const participantId = entry.participantId || normalizedUser.id || entry.socketId;
+                    if (!participantId) return;
+
+                    nextHandRaisedMap.set(participantId, {
+                        participantId,
+                        socketId: entry.socketId,
+                        isRaised: entry.isRaised,
+                        user: normalizedUser
+                    });
+                });
+
+                setUnderstandingMap(nextUnderstandingMap);
+                setHandRaisedMap(nextHandRaisedMap);
+            });
+
+            socketService.onTeacherUnderstandingUpdate((data: any) => {
+                const normalizedUser = normalizeParticipant(data.user);
+                const participantId = data.participantId || normalizedUser.id || data.socketId;
+                if (!participantId) return;
+
+                setUnderstandingMap(prev => {
+                    const next = new Map(prev);
+                    next.set(participantId, {
+                        participantId,
+                        socketId: data.socketId,
+                        understanding: data.understanding,
+                        user: normalizedUser
+                    });
+                    return next;
+                });
+            });
+
+            socketService.onTeacherHandRaise((data: any) => {
+                const normalizedUser = normalizeParticipant(data.user);
+                const participantId = data.participantId || normalizedUser.id || data.socketId;
+                if (!participantId) return;
+
+                setHandRaisedMap(prev => {
+                    const next = new Map(prev);
+                    if (data.isRaised) {
+                        next.set(participantId, {
+                            participantId,
+                            socketId: data.socketId,
+                            isRaised: true,
+                            user: normalizedUser
+                        });
+                    } else {
+                        next.delete(participantId);
+                    }
+                    return next;
+                });
+            });
+
+            socketService.emitEngagementStateRequest(code);
+        }
+
+        socketService.onReceivePrivateMsg((data: any) => {
+            const sender = normalizeParticipant(data.sender);
+            if (!sender.id || sender.id === currentUserId) return;
+
+            setPrivateMessages(prev => ({
+                ...prev,
+                [sender.id]: [
+                    ...(prev[sender.id] || []),
+                    {
+                        sender: { id: sender.id, name: sender.name },
+                        message: data.message,
+                        timestamp: data.timestamp,
+                        isMe: false
+                    }
+                ]
+            }));
+
+            setActivePrivateChatRecipient(prev => prev || { id: sender.id, name: sender.name });
+            setToast({ message: `New message from ${sender.name}`, type: 'info' });
+        });
+
+        return () => {
+            socketService.offEngagementEvents();
+            socketService.offEngagementStateSync();
+            socketService.offReceivePrivateMsg();
+        };
+    }, [code, isTeacher, session?._id, user]);
+
+    useEffect(() => {
+        return () => {
+            if (code) {
+                socketService.leaveSession(code);
+            }
+            socketService.offNewQuestion();
+            socketService.offUpdateQuestion();
+            socketService.offDeleteQuestion();
+            socketService.offSessionStatusUpdate();
+            socketService.offQuestionAnalyzed();
+            socketService.offQuestionPinnedToggle();
+            socketService.offQuestionsRefined();
+            socketService.offBatchRefinementFailed();
+            socketService.offUserJoined();
+            socketService.offPollEvents();
+            socketService.offEngagementEvents();
+            socketService.offEngagementStateSync();
+            socketService.offWhiteboardEvents();
+            socketService.offPulseCheckEvents();
+            socketService.offReceivePrivateMsg();
+        };
+    }, [code]);
 
     // 5-Second Auto-Refresh Logic for Teacher Answers
     useEffect(() => {
@@ -2945,6 +3096,36 @@ const SessionView: React.FC = () => {
         }
     };
 
+    const handleSendPrivateMessage = (message: string, recipient: { id: string; name: string }) => {
+        if (!code || !user?.name) return;
+
+        const senderId = getParticipantId(user);
+        if (!senderId) return;
+
+        setPrivateMessages(prev => ({
+            ...prev,
+            [recipient.id]: [
+                ...(prev[recipient.id] || []),
+                {
+                    sender: { id: senderId, name: user.name },
+                    message,
+                    timestamp: new Date().toISOString(),
+                    isMe: true
+                }
+            ]
+        }));
+
+        socketService.emitPrivateMsg({
+            recipientId: recipient.id,
+            message,
+            sender: {
+                id: senderId,
+                name: user.name,
+                sessionCode: code
+            }
+        });
+    };
+
     if (loading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'var(--color-bg)' }}>
@@ -2958,6 +3139,7 @@ const SessionView: React.FC = () => {
     // We use the questions array directly for navigation (Oldest First)
     const sortedQuestions = questions;
     const selectedQuestion = questions.find(q => q._id === selectedQuestionId);
+    const activePrivateChatMessages = activePrivateChatRecipient ? (privateMessages[activePrivateChatRecipient.id] || []) : [];
 
     const exportToCSV = () => {
         if (!questions.length) return;
@@ -3390,7 +3572,10 @@ const SessionView: React.FC = () => {
                                 >
                                     ×
                                 </button>
-                                <EngagementTeacherView />
+                                <EngagementTeacherView
+                                    understandingMap={understandingMap}
+                                    handRaisedMap={handRaisedMap}
+                                />
                             </div>
                         </div>
                     )}
@@ -3533,7 +3718,7 @@ const SessionView: React.FC = () => {
                                                 <span style={{ fontSize: '0.9rem', flex: 1 }}>{s.name}</span>
                                                 {(s._id !== user?.id && s.id !== user?.id) && (
                                                     <button
-                                                        onClick={() => setActivePrivateChatRecipient({ id: s._id || s.id, name: s.name })}
+                                                        onClick={() => setActivePrivateChatRecipient(normalizeParticipant(s))}
                                                         style={{
                                                             background: 'none',
                                                             border: 'none',
@@ -3694,8 +3879,8 @@ const SessionView: React.FC = () => {
                     <PrivateChat
                         recipient={activePrivateChatRecipient}
                         onClose={() => setActivePrivateChatRecipient(null)}
-                        currentUser={user}
-                        sessionCode={code || ''}
+                        messages={activePrivateChatMessages}
+                        onSendMessage={handleSendPrivateMessage}
                     />
                 )
             }

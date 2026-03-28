@@ -431,11 +431,22 @@ class SocketService {
     onTeacherHandRaise(callback: (data: any) => void) {
         if (this.socket) this.socket.on('teacher_hand_raise', callback);
     }
+    onEngagementStateSync(callback: (data: any) => void) {
+        if (this.socket) this.socket.on('engagement_state_sync', callback);
+    }
+    emitEngagementStateRequest(sessionCode: string) {
+        if (this.socket) this.socket.emit('request_engagement_state', { sessionCode });
+    }
 
     offEngagementEvents() {
         if (this.socket) {
             this.socket.off('teacher_understanding_update');
             this.socket.off('teacher_hand_raise');
+        }
+    }
+    offEngagementStateSync() {
+        if (this.socket) {
+            this.socket.off('engagement_state_sync');
         }
     }
 

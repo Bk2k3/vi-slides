@@ -1,48 +1,25 @@
-import React, { useEffect, useState } from 'react';
-import { socketService } from '../services/socketService';
+import React from 'react';
 
-interface UnderstandingUpdate {
+export interface UnderstandingUpdate {
+    participantId: string;
     socketId: string;
     understanding: 'confused' | 'neutral' | 'understanding';
     user: any;
 }
 
-interface HandRaiseUpdate {
+export interface HandRaiseUpdate {
+    participantId: string;
     socketId: string;
     isRaised: boolean;
     user: any;
 }
 
-const EngagementTeacherView: React.FC = () => {
-    const [understandingMap, setUnderstandingMap] = useState<Map<string, UnderstandingUpdate>>(new Map());
-    const [handRaisedMap, setHandRaisedMap] = useState<Map<string, HandRaiseUpdate>>(new Map());
+interface EngagementTeacherViewProps {
+    understandingMap: Map<string, UnderstandingUpdate>;
+    handRaisedMap: Map<string, HandRaiseUpdate>;
+}
 
-    useEffect(() => {
-        socketService.onTeacherUnderstandingUpdate((data) => {
-            setUnderstandingMap(prev => {
-                const newMap = new Map(prev);
-                newMap.set(data.socketId, data);
-                return newMap;
-            });
-        });
-
-        socketService.onTeacherHandRaise((data) => {
-            setHandRaisedMap(prev => {
-                const newMap = new Map(prev);
-                if (data.isRaised) {
-                    newMap.set(data.socketId, data);
-                } else {
-                    newMap.delete(data.socketId);
-                }
-                return newMap;
-            });
-        });
-
-        // Cleanup on unmount handled by SessionView typically, but good to be explicit
-        return () => {
-            // socketService.offEngagementEvents();
-        };
-    }, []);
+const EngagementTeacherView: React.FC<EngagementTeacherViewProps> = ({ understandingMap, handRaisedMap }) => {
 
     const stats = {
         confused: Array.from(understandingMap.values()).filter(u => u.understanding === 'confused').length,
@@ -83,7 +60,7 @@ const EngagementTeacherView: React.FC = () => {
                 </div>
                 <div style={{ maxHeight: '100px', overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                     {Array.from(handRaisedMap.values()).map(h => (
-                        <div key={h.socketId} style={{
+                        <div key={h.participantId} style={{
                             padding: '0.2rem 0.5rem',
                             background: 'rgba(245, 158, 11, 0.1)',
                             border: '1px solid rgba(245, 158, 11, 0.2)',
