@@ -7,7 +7,6 @@ import { initSocket } from './config/socket';
 import authRoutes from './routes/auth';
 import sessionRoutes from './routes/session';
 import questionRoutes from './routes/question';
-import pollRoutes from './routes/poll';
 import assignmentRoutes from './routes/assignment';
 import submissionRoutes from './routes/submission';
 import guestRoutes from './routes/guest';
@@ -34,7 +33,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/questions', questionRoutes);
-app.use('/api/polls', pollRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/guest', guestRoutes); // Public routes for guest join

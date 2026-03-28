@@ -3,7 +3,6 @@ import Session from '../models/Session';
 import Question from '../models/Question';
 import GuestParticipant from '../models/GuestParticipant';
 import { emitToSession } from '../config/socket';
-import { queueQuestion } from '../services/questionBatchService';
 
 // @desc    Guest join session with form submission
 // @route   POST /api/sessions/guest/join
@@ -24,7 +23,7 @@ export const guestJoinSession = async (req: Request, res: Response): Promise<voi
         }
 
         // Find the session
-        const session = await Session.findOne({ code: code.toUpperCase(), status: { $in: ['active', 'paused'] } });
+        const session = await Session.findOne({ code: code.toUpperCase(), status: 'active' });
 
         if (!session) {
             res.status(404).json({
@@ -51,22 +50,7 @@ export const guestJoinSession = async (req: Request, res: Response): Promise<voi
                 guestName: name,
                 guestEmail: email,
                 status: 'active',
-                analysisStatus: 'not_requested',
-                refinementStatus: 'pending',
-                originalContent: question.trim(),
-                upvotes: [],
-                isPinned: false,
-                isDirectToTeacher: true
-            });
-
-            // Queue for batch refinement
-            queueQuestion({
-                _id: createdQuestion._id,
-                content: createdQuestion.content,
-                sessionId: session._id.toString(),
-                guestName: name,
-                guestEmail: email,
-                timestamp: Date.now()
+                analysisStatus: 'not_requested'
             });
 
             // Emit the new question to the session
@@ -152,20 +136,7 @@ export const createGuestQuestion = async (req: Request, res: Response): Promise<
             guestName: name,
             guestEmail: email,
             status: 'active',
-            isDirectToTeacher: true,
-            analysisStatus: 'not_requested',
-            refinementStatus: 'pending',
-            originalContent: content
-        });
-
-        // Queue for batch refinement
-        queueQuestion({
-            _id: question._id,
-            content: question.content,
-            sessionId: sessionId.toString(),
-            guestName: name,
-            guestEmail: email,
-            timestamp: Date.now()
+            analysisStatus: 'not_requested'
         });
 
         // Emit real-time event

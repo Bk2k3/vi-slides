@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { sessionService } from '../services/sessionService';
-
 import { useTheme } from '../contexts/ThemeContext';
-
 import CertificateCard from '../components/CertificateCard';
 import Toast from '../components/Toast';
 
@@ -17,77 +15,46 @@ const Dashboard: React.FC = () => {
     const [joinCode, setJoinCode] = useState('');
     const [sessionTitle, setSessionTitle] = useState('');
     const [error, setError] = useState('');
+    const [activeSession, setActiveSession] = useState<any>(null);
     const [pastSessions, setPastSessions] = useState<any[]>([]);
+    const [showUserMenu, setShowUserMenu] = useState(false);
+    const [showCertModal, setShowCertModal] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [hiddenCerts, setHiddenCerts] = useState<string[]>(() => {
         const saved = localStorage.getItem('hidden_certs');
         return saved ? JSON.parse(saved) : [];
     });
 
-    const [showUserMenu, setShowUserMenu] = useState(false);
-    const [showCertModal, setShowCertModal] = useState(false);
-    const [showQRModal, setShowQRModal] = useState(false);
-    const [activeSession, setActiveSession] = useState<any>(null);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const isTeacher = user?.role?.toLowerCase() === 'teacher';
 
     useEffect(() => {
-        const fetchActiveSession = async () => {
+        const fetchDashboardData = async () => {
             try {
-                const response = await sessionService.getActiveSession();
-                if (response.success && response.data) {
-                    // Only redirect students directly to session
-                    // Teachers should see dashboard with controls and QR code
-                    if (user?.role === 'Student') {
-                        navigate(`/session/${response.data.code}`);
+                const activeResponse = await sessionService.getActiveSession();
+                if (activeResponse.success) {
+                    setActiveSession(activeResponse.data);
+
+                    if (!isTeacher && activeResponse.data) {
+                        navigate(`/session/${activeResponse.data.code}`);
+                        return;
+                    }
+                }
+
+                if (!isTeacher) {
+                    const historyResponse = await sessionService.getStudentSessions();
+                    if (historyResponse.success) {
+                        setPastSessions(historyResponse.data);
                     }
                 }
             } catch (err) {
-                console.error('Error fetching active session:', err);
+                console.error('Dashboard load error:', err);
             } finally {
                 setLoading(false);
             }
         };
 
-
-
-        const fetchPastSessions = async () => {
-            if (user?.role === 'Student') {
-                try {
-                    // We need to implement this in service/backend first
-                    const response = await sessionService.getStudentSessions();
-                    if (response.success) {
-                        setPastSessions(response.data);
-                    }
-                } catch (err) {
-                    console.error('Error fetching past sessions:', err);
-                }
-            }
-        };
-
-        fetchActiveSession();
-        fetchPastSessions();
-
-        // For teachers, also fetch active session for QR code display
-        const fetchActiveSessionForQR = async () => {
-            if (user?.role === 'Teacher') {
-                try {
-                    const response = await sessionService.getActiveSession();
-                    if (response.success && response.data) {
-                        setActiveSession(response.data);
-                    }
-                } catch (err) {
-                    console.error('Error fetching sessions:', err);
-                }
-            }
-        };
-        fetchActiveSessionForQR();
-    }, [navigate, user]);
-
-    const handleDeleteCert = (sessionId: string) => {
-        const newHidden = [...hiddenCerts, sessionId];
-        setHiddenCerts(newHidden);
-        localStorage.setItem('hidden_certs', JSON.stringify(newHidden));
-        setToast({ message: 'Certificate removed from view', type: 'info' });
-    };
+        fetchDashboardData();
+    }, [isTeacher, navigate]);
 
     const handleLogout = () => {
         logout();
@@ -100,12 +67,16 @@ const Dashboard: React.FC = () => {
 
         setError('');
         try {
-            const response = await sessionService.createSession({ title: sessionTitle });
+            const response = await sessionService.createSession({ title: sessionTitle.trim() });
             if (response.success) {
                 navigate(`/session/${response.data.code}`);
             }
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to create session');
+            const responseData = err.response?.data;
+            if (responseData?.data?.code) {
+                setActiveSession(responseData.data);
+            }
+            setError(responseData?.message || 'Failed to create session');
         }
     };
 
@@ -115,7 +86,7 @@ const Dashboard: React.FC = () => {
 
         setError('');
         try {
-            const response = await sessionService.joinSession(joinCode);
+            const response = await sessionService.joinSession(joinCode.trim());
             if (response.success) {
                 navigate(`/session/${response.data.code}`);
             }
@@ -124,7 +95,37 @@ const Dashboard: React.FC = () => {
         }
     };
 
+    const handleDeleteCert = (sessionId: string) => {
+        const next = [...hiddenCerts, sessionId];
+        setHiddenCerts(next);
+        localStorage.setItem('hidden_certs', JSON.stringify(next));
+        setToast({ message: 'Certificate removed from view', type: 'info' });
+    };
 
+    const handleEndActiveSession = async () => {
+        if (!activeSession?._id) return;
+
+        setError('');
+        try {
+            const response = await sessionService.endSession(activeSession._id);
+            if (response.success) {
+                setActiveSession(null);
+                setToast({ message: 'Session ended', type: 'success' });
+            }
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to end session');
+        }
+    };
+
+    const copyText = async (value: string, successMessage: string) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            setToast({ message: successMessage, type: 'success' });
+        } catch (error) {
+            console.error('Clipboard error:', error);
+            setToast({ message: 'Failed to copy', type: 'error' });
+        }
+    };
 
     if (loading) {
         return (
@@ -136,7 +137,6 @@ const Dashboard: React.FC = () => {
 
     return (
         <div style={{ minHeight: '100vh', background: 'var(--color-bg)' }}>
-            {/* Navigation Bar */}
             <nav style={{
                 background: 'var(--color-bg-secondary)',
                 opacity: 0.95,
@@ -152,8 +152,8 @@ const Dashboard: React.FC = () => {
                 <div style={{ fontSize: '1.5rem', fontWeight: 'bold', background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                     Vi-SlideS
                 </div>
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
-                    {/* Premium Avatar Trigger */}
                     <div
                         style={{
                             cursor: 'pointer',
@@ -190,7 +190,6 @@ const Dashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Premium Dropdown Menu */}
                     {showUserMenu && (
                         <div className="glass-card slide-in" style={{
                             position: 'absolute',
@@ -209,10 +208,8 @@ const Dashboard: React.FC = () => {
                                 <p style={{ fontWeight: '600', color: 'var(--color-text)', fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email}</p>
                             </div>
 
-
-
                             <button
-                                onClick={() => { toggleTheme(); }}
+                                onClick={toggleTheme}
                                 className="btn"
                                 style={{
                                     width: '100%',
@@ -223,10 +220,8 @@ const Dashboard: React.FC = () => {
                                     borderRadius: 'var(--radius-md)',
                                     padding: '0.75rem 1rem'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
-                                <span style={{ marginRight: '12px', fontSize: '1.2rem' }}>{theme === 'dark' ? '☀️' : '🌙'}</span>
+                                <span style={{ marginRight: '12px', fontSize: '1.2rem' }}>{theme === 'dark' ? 'â˜€ï¸' : 'ðŸŒ™'}</span>
                                 <span style={{ fontSize: '1rem' }}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
                             </button>
 
@@ -241,10 +236,8 @@ const Dashboard: React.FC = () => {
                                     borderRadius: 'var(--radius-md)',
                                     padding: '0.75rem 1rem'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
-                                <span style={{ marginRight: '12px', fontSize: '1.2rem' }}>🚪</span>
+                                <span style={{ marginRight: '12px', fontSize: '1.2rem' }}>ðŸšª</span>
                                 <span style={{ fontSize: '1rem' }}>Logout</span>
                             </button>
                         </div>
@@ -252,12 +245,11 @@ const Dashboard: React.FC = () => {
                 </div>
             </nav>
 
-            {/* Main Content */}
             <main className="container fade-in" style={{ paddingTop: '3rem' }}>
                 <div className="glass-card" style={{ marginBottom: '2rem' }}>
                     <h1 className="mb-2">Welcome, {user?.name}</h1>
                     <p className="text-muted">
-                        {user?.role?.toLowerCase() === 'teacher' ? 'Ready to interact with your students?' : 'Join a session to start asking questions!'}
+                        {isTeacher ? 'Create a session, continue the active one, and keep the class focused on questions and chat.' : 'Join a session to start asking questions and chatting.'}
                     </p>
 
                     {error && (
@@ -267,38 +259,86 @@ const Dashboard: React.FC = () => {
                     )}
                 </div>
 
-                {/* Quick Actions Grid */}
                 <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
                     gap: '1.5rem',
                     alignItems: 'start'
                 }}>
-                    {user?.role?.toLowerCase() === 'teacher' ? (
+                    {isTeacher ? (
                         <>
-                            <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0) 100%)' }}>
+                            {activeSession && (
+                                <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.12) 0%, rgba(20, 184, 166, 0) 100%)' }}>
+                                    <h3>Active Session</h3>
+                                    <p className="text-muted mt-1">You already have a live session running.</p>
+                                    <div style={{ marginTop: '1.25rem', display: 'grid', gap: '0.75rem' }}>
+                                        <div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '0.25rem' }}>Title</div>
+                                            <div style={{ fontWeight: 700 }}>{activeSession.title}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '0.25rem' }}>Session Code</div>
+                                            <button
+                                                type="button"
+                                                onClick={() => copyText(activeSession.code, `Copied ${activeSession.code}`)}
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    padding: 0,
+                                                    cursor: 'pointer',
+                                                    color: 'var(--color-primary-light)',
+                                                    fontWeight: 800,
+                                                    letterSpacing: '0.12em',
+                                                    textTransform: 'uppercase',
+                                                    fontSize: '1rem'
+                                                }}
+                                            >
+                                                {activeSession.code}
+                                            </button>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                            <button onClick={() => navigate(`/session/${activeSession.code}`)} className="btn btn-primary">
+                                                Continue Session
+                                            </button>
+                                            <button
+                                                onClick={() => copyText(`${window.location.origin}/join/${activeSession.code}`, 'Join link copied')}
+                                                className="btn btn-secondary"
+                                            >
+                                                Copy Join Link
+                                            </button>
+                                            <button
+                                                onClick={handleEndActiveSession}
+                                                className="btn btn-secondary"
+                                            >
+                                                End Session
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0) 100%)' }}>
                                 <h3>Start a Session</h3>
-                                <p className="text-muted mt-1">Create a new live Q&A session for your class.</p>
+                                <p className="text-muted mt-1">
+                                    {activeSession ? 'End the current session before starting another one.' : 'Create a new live session for questions and room chat.'}
+                                </p>
                                 <form onSubmit={handleCreateSession} style={{ marginTop: '1.5rem' }}>
                                     <div className="form-group">
                                         <input
                                             type="text"
-                                            placeholder="Session Title (e.g. Intro to Biology)"
+                                            placeholder="Session Title"
                                             className="form-input"
                                             value={sessionTitle}
                                             onChange={(e) => setSessionTitle(e.target.value)}
                                             required
+                                            disabled={!!activeSession}
                                         />
                                     </div>
-                                    <button type="submit" className="btn btn-primary btn-block">Create Now</button>
+                                    <button type="submit" className="btn btn-primary btn-block" disabled={!!activeSession}>
+                                        Create Session
+                                    </button>
                                 </form>
                             </div>
-                            <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(20, 184, 166, 0) 100%)' }}>
-                                <h3>📚 Assignments</h3>
-                                <p className="text-muted mt-1">Create and grade student assignments.</p>
-                                <button onClick={() => navigate('/assignments')} className="btn btn-primary mt-2">Manage Assignments</button>
-                            </div>
-
                         </>
                     ) : (
                         <>
@@ -319,12 +359,12 @@ const Dashboard: React.FC = () => {
                                 </form>
                             </div>
                             <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(20, 184, 166, 0) 100%)' }}>
-                                <h3>📚 Assignments</h3>
+                                <h3>ðŸ“š Assignments</h3>
                                 <p className="text-muted mt-1">View and submit your assignments.</p>
                                 <button onClick={() => navigate('/assignments')} className="btn btn-primary mt-2">View Assignments</button>
                             </div>
                             <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0) 100%)' }}>
-                                <h3>🎓 Certificates</h3>
+                                <h3>ðŸŽ“ Certificates</h3>
                                 <p className="text-muted mt-1">View and download your participation certificates.</p>
                                 <button onClick={() => setShowCertModal(true)} className="btn btn-primary mt-2">View Certificates</button>
                             </div>
@@ -332,62 +372,59 @@ const Dashboard: React.FC = () => {
                     )}
                 </div>
 
-                {/* Certificates Modal */}
-                {
-                    showCertModal && (
-                        <div className="modal-overlay fade-in" style={{
-                            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                            background: 'rgba(0,0,0,0.8)', zIndex: 1000,
-                            display: 'flex', justifyContent: 'center', alignItems: 'center',
-                            padding: '2rem'
+                {showCertModal && (
+                    <div className="modal-overlay fade-in" style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.8)', zIndex: 1000,
+                        display: 'flex', justifyContent: 'center', alignItems: 'center',
+                        padding: '2rem'
+                    }}>
+                        <div className="glass-card slide-in" style={{
+                            width: '100%',
+                            maxWidth: '900px',
+                            maxHeight: '90vh',
+                            overflowY: 'auto',
+                            position: 'relative'
                         }}>
-                            <div className="glass-card slide-in" style={{
-                                width: '100%',
-                                maxWidth: '900px',
-                                maxHeight: '90vh',
-                                overflowY: 'auto',
-                                position: 'relative'
-                            }}>
-                                <button
-                                    onClick={() => setShowCertModal(false)}
-                                    style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer', zIndex: 10 }}
-                                >
-                                    ✕
-                                </button>
+                            <button
+                                onClick={() => setShowCertModal(false)}
+                                style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer', zIndex: 10 }}
+                            >
+                                âœ•
+                            </button>
 
-                                <h2 className="mb-2" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span>🎓</span> Your Certificates
-                                </h2>
+                            <h2 className="mb-2" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span>ðŸŽ“</span> Your Certificates
+                            </h2>
 
-                                {pastSessions.filter(session => !hiddenCerts.includes(session._id)).length === 0 ? (
-                                    <p className="text-muted">No certificates found. Join sessions to earn them!</p>
-                                ) : (
-                                    <div style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-                                        gap: '2rem',
-                                        marginTop: '1.5rem'
-                                    }}>
-                                        {pastSessions
-                                            .filter(session => !hiddenCerts.includes(session._id))
-                                            .map((session) => (
-                                                <CertificateCard
-                                                    key={session._id}
-                                                    sessionTitle={session.title}
-                                                    sessionCode={session.code}
-                                                    studentName={user?.name || 'Student'}
-                                                    date={session.createdAt}
-                                                    teacherName="Tarun Venkat"
-                                                    onDelete={() => handleDeleteCert(session._id)}
-                                                />
-                                            ))}
-                                    </div>
-                                )}
-                            </div>
+                            {pastSessions.filter(session => !hiddenCerts.includes(session._id)).length === 0 ? (
+                                <p className="text-muted">No certificates found. Join sessions to earn them!</p>
+                            ) : (
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+                                    gap: '2rem',
+                                    marginTop: '1.5rem'
+                                }}>
+                                    {pastSessions
+                                        .filter(session => !hiddenCerts.includes(session._id))
+                                        .map((session) => (
+                                            <CertificateCard
+                                                key={session._id}
+                                                sessionTitle={session.title}
+                                                sessionCode={session.code}
+                                                studentName={user?.name || 'Student'}
+                                                date={session.createdAt}
+                                                teacherName="Teacher"
+                                                onDelete={() => handleDeleteCert(session._id)}
+                                            />
+                                        ))}
+                                </div>
+                            )}
                         </div>
-                    )
-                }
-            </main >
+                    </div>
+                )}
+            </main>
 
             {toast && (
                 <Toast
@@ -396,69 +433,7 @@ const Dashboard: React.FC = () => {
                     onClose={() => setToast(null)}
                 />
             )}
-
-            {/* QR Code Modal */}
-            {showQRModal && activeSession && (
-                <div className="modal-overlay fade-in" style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.8)', zIndex: 1000,
-                    display: 'flex', justifyContent: 'center', alignItems: 'center',
-                    padding: '2rem'
-                }}>
-                    <div className="glass-card slide-in" style={{
-                        width: '100%',
-                        maxWidth: '500px',
-                        position: 'relative',
-                        textAlign: 'center'
-                    }}>
-                        <button
-                            onClick={() => setShowQRModal(false)}
-                            style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer', zIndex: 10 }}
-                        >
-                            ✕
-                        </button>
-
-                        <h2 className="mb-2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                            <span>📱</span> Join with QR Code
-                        </h2>
-
-                        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
-                            {activeSession.title}
-                        </p>
-
-                        {activeSession.qrCodeDataUrl ? (
-                            <div style={{ background: 'white', padding: '1.5rem', borderRadius: 'var(--radius-lg)', marginBottom: '1.5rem' }}>
-                                <img src={activeSession.qrCodeDataUrl} alt="QR Code" style={{ width: '100%', maxWidth: '300px', height: 'auto' }} />
-                            </div>
-                        ) : (
-                            <div style={{ padding: '2rem', color: 'var(--color-text-muted)' }}>
-                                QR Code not available
-                            </div>
-                        )}
-
-                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem' }}>
-                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>Join URL:</p>
-                            <p style={{ fontSize: '0.9rem', fontFamily: 'monospace', color: 'var(--color-primary-light)', wordBreak: 'break-all' }}>
-                                {window.location.origin}/join/{activeSession.code}
-                            </p>
-                        </div>
-
-                        <button
-                            onClick={() => {
-                                navigator.clipboard.writeText(`${window.location.origin}/join/${activeSession.code}`);
-                                setToast({ message: 'Join link copied to clipboard!', type: 'success' });
-                            }}
-                            className="btn btn-primary btn-block"
-                        >
-                            📋 Copy Join Link
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Certificates Section for Students */}
-
-        </div >
+        </div>
     );
 };
 

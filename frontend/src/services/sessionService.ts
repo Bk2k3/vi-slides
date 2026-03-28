@@ -5,8 +5,6 @@ export interface Session {
     title: string;
     description?: string;
     code: string;
-    qrCodeDataUrl?: string; // Base64 QR code image
-    joinUrl?: string; // URL for joining
     teacher: any;
     students: any[];
     attendance?: {
@@ -22,7 +20,7 @@ export interface Session {
         message: string;
         createdAt: string;
     }[];
-    status: 'active' | 'inactive' | 'ended' | 'paused';
+    status: 'active' | 'ended';
     endedAt?: string;
     createdAt: string;
 }
@@ -64,19 +62,11 @@ export const sessionService = {
             _id: string;
             title: string;
             code: string;
-            questionCount: number;
-            duration: number;
-            moodSummary: string;
+            endedAt: string;
         };
         message: string
     }> => {
         const response = await api.patch(`/sessions/${id}/end`);
-        return response.data;
-    },
-
-    // Pause/Resume a session (Teacher)
-    pauseSession: async (id: string): Promise<{ success: boolean; status: string; message: string }> => {
-        const response = await api.patch(`/sessions/${id}/pause`);
         return response.data;
     },
 
@@ -89,18 +79,6 @@ export const sessionService = {
     // Get student session history
     getStudentSessions: async (): Promise<{ success: boolean; data: any[] }> => {
         const response = await api.get('/sessions/student/history');
-        return response.data;
-    },
-
-    // Get or create persistent query session (Teacher)
-    getQuerySession: async (): Promise<{ success: boolean; data: Session }> => {
-        const response = await api.get('/sessions/query-mode');
-        return response.data;
-    },
-
-    // Update custom query URL (Teacher)
-    updateQueryUrl: async (url: string): Promise<{ success: boolean; data: Session }> => {
-        const response = await api.patch('/sessions/query-mode/url', { url });
         return response.data;
     }
 };

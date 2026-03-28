@@ -4,8 +4,6 @@ export interface ISession extends Document {
     title: string;
     description?: string;
     code: string; // Unique 6-character code
-    qrCodeDataUrl?: string; // Base64 QR code image
-    joinUrl?: string; // The URL encoded in the QR code
     teacher: mongoose.Types.ObjectId;
     students: mongoose.Types.ObjectId[];
     attendance: {
@@ -21,11 +19,8 @@ export interface ISession extends Document {
         message: string;
         createdAt: Date;
     }[];
-    status: 'active' | 'inactive' | 'ended' | 'paused';
-    isQuerySession?: boolean;
-    customQueryUrl?: string;
+    status: 'active' | 'ended';
     endedAt?: Date;
-    moodSummary?: string;
     createdAt: Date;
 }
 
@@ -47,12 +42,6 @@ const sessionSchema = new Schema<ISession>({
         unique: true,
         uppercase: true,
         trim: true
-    },
-    qrCodeDataUrl: {
-        type: String
-    },
-    joinUrl: {
-        type: String
     },
     teacher: {
         type: Schema.Types.ObjectId,
@@ -78,22 +67,11 @@ const sessionSchema = new Schema<ISession>({
     }],
     status: {
         type: String,
-        enum: ['active', 'inactive', 'ended', 'paused'],
+        enum: ['active', 'ended'],
         default: 'active'
-    },
-    isQuerySession: {
-        type: Boolean,
-        default: false
-    },
-    customQueryUrl: {
-        type: String,
-        trim: true
     },
     endedAt: {
         type: Date
-    },
-    moodSummary: {
-        type: String
     },
     createdAt: {
         type: Date,

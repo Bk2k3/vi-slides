@@ -160,6 +160,20 @@ const SessionView: React.FC = () => {
         }
     };
 
+    const handleEndSession = async () => {
+        if (!session?._id) return;
+
+        try {
+            const response = await sessionService.endSession(session._id);
+            if (response.success) {
+                navigate('/dashboard');
+            }
+        } catch (error) {
+            console.error('End session error:', error);
+            setToast({ message: 'Failed to end session', type: 'error' });
+        }
+    };
+
     const handleSendChatMessage = async (message: string) => {
         if (!code || !user?.name) return;
 
@@ -223,8 +237,8 @@ const SessionView: React.FC = () => {
                     <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                         {isTeacher ? 'Teacher view' : 'Student view'}
                     </span>
-                    <button onClick={handleLeaveSession} className="btn btn-secondary">
-                        Leave
+                    <button onClick={isTeacher ? handleEndSession : handleLeaveSession} className="btn btn-secondary">
+                        {isTeacher ? 'End Session' : 'Leave'}
                     </button>
                 </div>
             </nav>
