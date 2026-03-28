@@ -15,6 +15,12 @@ export interface ISession extends Document {
         joinTime: Date;
         leaveTime?: Date;
     }[];
+    chatMessages: {
+        senderId?: mongoose.Types.ObjectId;
+        senderName: string;
+        message: string;
+        createdAt: Date;
+    }[];
     status: 'active' | 'inactive' | 'ended' | 'paused';
     isQuerySession?: boolean;
     customQueryUrl?: string;
@@ -63,6 +69,12 @@ const sessionSchema = new Schema<ISession>({
         email: String,
         joinTime: { type: Date, default: Date.now },
         leaveTime: Date
+    }],
+    chatMessages: [{
+        senderId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
+        senderName: { type: String, required: true, trim: true },
+        message: { type: String, required: true, trim: true, maxlength: 1000 },
+        createdAt: { type: Date, default: Date.now }
     }],
     status: {
         type: String,

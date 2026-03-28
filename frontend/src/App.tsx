@@ -6,7 +6,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import SessionView from './pages/SessionView';
-import SessionSummary from './pages/SessionSummary';
 import Assignments from './pages/Assignments';
 import AssignmentDetails from './pages/AssignmentDetails';
 import GuestJoinForm from './pages/GuestJoinForm';
@@ -36,14 +35,6 @@ const App: React.FC = () => {
                         element={
                             <ProtectedRoute>
                                 <SessionView />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/session/:code/summary"
-                        element={
-                            <ProtectedRoute>
-                                <SessionSummary />
                             </ProtectedRoute>
                         }
                     />

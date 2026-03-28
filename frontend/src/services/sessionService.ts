@@ -16,6 +16,12 @@ export interface Session {
         joinTime: string;
         leaveTime?: string;
     }[];
+    chatMessages?: {
+        senderId?: string;
+        senderName: string;
+        message: string;
+        createdAt: string;
+    }[];
     status: 'active' | 'inactive' | 'ended' | 'paused';
     endedAt?: string;
     createdAt: string;

@@ -461,6 +461,17 @@ class SocketService {
         if (this.socket) this.socket.off('receive_private_msg');
     }
 
+    // Shared Session Chat
+    emitSessionMessage(payload: { sessionCode: string, message: string, sender: any }) {
+        if (this.socket) this.socket.emit('send_session_message', payload);
+    }
+    onSessionMessage(callback: (data: any) => void) {
+        if (this.socket) this.socket.on('session_message', callback);
+    }
+    offSessionMessage() {
+        if (this.socket) this.socket.off('session_message');
+    }
+
     // Pulse Check Events
     emitPulseCheckInit(sessionCode: string) {
         if (this.socket) this.socket.emit('pulse_check_init', { sessionCode });
