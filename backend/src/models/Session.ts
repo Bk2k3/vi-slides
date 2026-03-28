@@ -16,6 +16,7 @@ export interface ISession extends Document {
     chatMessages: {
         senderId?: mongoose.Types.ObjectId;
         senderName: string;
+        senderRole?: 'teacher' | 'student';
         message: string;
         createdAt: Date;
     }[];
@@ -62,6 +63,7 @@ const sessionSchema = new Schema<ISession>({
     chatMessages: [{
         senderId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
         senderName: { type: String, required: true, trim: true },
+        senderRole: { type: String, enum: ['teacher', 'student'], required: false },
         message: { type: String, required: true, trim: true, maxlength: 1000 },
         createdAt: { type: Date, default: Date.now }
     }],

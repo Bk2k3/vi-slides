@@ -10,15 +10,17 @@ import SessionChatWindow, { SessionChatMessage } from '../components/SessionChat
 import Toast from '../components/Toast';
 
 type SessionTab = 'questions' | 'chat';
+type RoomPresence = { teachers: number; students: number; total: number };
 
 const getUserId = (user: any) => {
     const value = user?.id || user?._id || '';
     return typeof value === 'string' ? value : value?.toString?.() || '';
 };
 
-const normalizeChatMessage = (message: any): SessionChatMessage => ({
+const normalizeChatMessage = (message: any, teacherUserId?: string): SessionChatMessage => ({
     senderId: getUserId({ id: message?.senderId }),
     senderName: message?.senderName || 'Participant',
+    senderRole: message?.senderRole || (getUserId({ id: message?.senderId }) === teacherUserId ? 'teacher' : 'student'),
     message: message?.message || '',
     createdAt: message?.createdAt || new Date().toISOString()
 });
@@ -35,6 +37,7 @@ const SessionView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [roomPresence, setRoomPresence] = useState<RoomPresence>({ teachers: 0, students: 0, total: 0 });
 
     const isTeacher = user?.role?.toLowerCase() === 'teacher';
     const currentUserId = getUserId(user);
@@ -55,9 +58,10 @@ const SessionView: React.FC = () => {
                 }
 
                 setSession(sessionRes.data);
+                const teacherUserId = getUserId(sessionRes.data.teacher);
                 setChatMessages(
                     (sessionRes.data.chatMessages || [])
-                        .map(normalizeChatMessage)
+                        .map((message) => normalizeChatMessage(message, teacherUserId))
                         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
                 );
 
@@ -67,14 +71,6 @@ const SessionView: React.FC = () => {
                 }
 
                 socketService.connect();
-                socketService.joinSession({
-                    sessionCode: code,
-                    user: {
-                        _id: currentUserId,
-                        name: user?.name,
-                        email: user?.email
-                    }
-                });
 
                 socketService.offNewQuestion();
                 socketService.onNewQuestion((newQuestion: Question) => {
@@ -103,7 +99,22 @@ const SessionView: React.FC = () => {
 
                 socketService.offSessionMessage();
                 socketService.onSessionMessage((message: SessionChatMessage) => {
-                    setChatMessages(prev => [...prev, normalizeChatMessage(message)]);
+                    setChatMessages(prev => [...prev, normalizeChatMessage(message, teacherUserId)]);
+                });
+
+                socketService.offRoomPresenceUpdate();
+                socketService.onRoomPresenceUpdate((presence) => {
+                    setRoomPresence(presence);
+                });
+
+                socketService.joinSession({
+                    sessionCode: code,
+                    user: {
+                        _id: currentUserId,
+                        name: user?.name,
+                        email: user?.email,
+                        role: isTeacher ? 'teacher' : 'student'
+                    }
                 });
             } catch (err: any) {
                 if (isMounted) {
@@ -128,8 +139,9 @@ const SessionView: React.FC = () => {
             socketService.offDeleteQuestion();
             socketService.offSessionStatusUpdate();
             socketService.offSessionMessage();
+            socketService.offRoomPresenceUpdate();
         };
-    }, [code, currentUserId, navigate, user?.email, user?.name]);
+    }, [code, currentUserId, isTeacher, navigate, user?.email, user?.name]);
 
     const sortedQuestions = useMemo(
         () => [...questions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -182,7 +194,8 @@ const SessionView: React.FC = () => {
             message,
             sender: {
                 id: currentUserId,
-                name: user.name
+                name: user.name,
+                role: isTeacher ? 'teacher' : 'student'
             }
         });
     };
@@ -237,6 +250,18 @@ const SessionView: React.FC = () => {
                     <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                         {isTeacher ? 'Teacher view' : 'Student view'}
                     </span>
+                    <span
+                        style={{
+                            fontSize: '0.8rem',
+                            color: 'var(--color-text)',
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: '999px',
+                            padding: '0.35rem 0.75rem'
+                        }}
+                    >
+                        {roomPresence.total} people - {roomPresence.teachers} teacher{roomPresence.teachers === 1 ? '' : 's'} - {roomPresence.students} student{roomPresence.students === 1 ? '' : 's'}
+                    </span>
                     <button onClick={isTeacher ? handleEndSession : handleLeaveSession} className="btn btn-secondary">
                         {isTeacher ? 'End Session' : 'Leave'}
                     </button>
@@ -289,6 +314,7 @@ const SessionView: React.FC = () => {
                                 <QuestionInput
                                     sessionId={session._id}
                                     sessionStatus={session.status}
+                                    isTeacher={isTeacher}
                                     onQuestionSubmitted={(question) => {
                                         setQuestions(prev => prev.some(item => item._id === question._id) ? prev : [question, ...prev]);
                                     }}
@@ -318,6 +344,7 @@ const SessionView: React.FC = () => {
                             <SessionChatWindow
                                 messages={chatMessages}
                                 currentUserId={currentUserId}
+                                teacherUserId={getUserId(session.teacher)}
                                 onSendMessage={handleSendChatMessage}
                             />
                         )}
@@ -332,6 +359,15 @@ const SessionView: React.FC = () => {
                                 </div>
                                 <div>
                                     <strong style={{ color: 'var(--color-text)' }}>Started:</strong> {new Date(session.createdAt).toLocaleString()}
+                                </div>
+                                <div>
+                                    <strong style={{ color: 'var(--color-text)' }}>People:</strong> {roomPresence.total}
+                                </div>
+                                <div>
+                                    <strong style={{ color: 'var(--color-text)' }}>Teachers:</strong> {roomPresence.teachers}
+                                </div>
+                                <div>
+                                    <strong style={{ color: 'var(--color-text)' }}>Students:</strong> {roomPresence.students}
                                 </div>
                                 <div>
                                     <strong style={{ color: 'var(--color-text)' }}>Session Code:</strong>{' '}

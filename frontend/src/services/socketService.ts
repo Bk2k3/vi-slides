@@ -89,6 +89,18 @@ class SocketService {
         }
     }
 
+    onRoomPresenceUpdate(callback: (data: { teachers: number; students: number; total: number }) => void) {
+        if (this.socket) {
+            this.socket.on('room_presence_update', callback);
+        }
+    }
+
+    offRoomPresenceUpdate() {
+        if (this.socket) {
+            this.socket.off('room_presence_update');
+        }
+    }
+
     emitSessionMessage(payload: { sessionCode: string; message: string; sender: any }) {
         if (this.socket) {
             this.socket.emit('send_session_message', payload);

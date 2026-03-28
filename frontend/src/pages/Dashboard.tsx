@@ -221,7 +221,7 @@ const Dashboard: React.FC = () => {
                                     padding: '0.75rem 1rem'
                                 }}
                             >
-                                <span style={{ marginRight: '12px', fontSize: '1.2rem' }}>{theme === 'dark' ? 'â˜€ï¸' : 'ðŸŒ™'}</span>
+                                <span style={{ marginRight: '12px', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.04em' }}>THEME</span>
                                 <span style={{ fontSize: '1rem' }}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
                             </button>
 
@@ -237,7 +237,7 @@ const Dashboard: React.FC = () => {
                                     padding: '0.75rem 1rem'
                                 }}
                             >
-                                <span style={{ marginRight: '12px', fontSize: '1.2rem' }}>ðŸšª</span>
+                                <span style={{ marginRight: '12px', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.04em' }}>EXIT</span>
                                 <span style={{ fontSize: '1rem' }}>Logout</span>
                             </button>
                         </div>
@@ -359,12 +359,12 @@ const Dashboard: React.FC = () => {
                                 </form>
                             </div>
                             <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(20, 184, 166, 0) 100%)' }}>
-                                <h3>ðŸ“š Assignments</h3>
+                                <h3>Assignments</h3>
                                 <p className="text-muted mt-1">View and submit your assignments.</p>
                                 <button onClick={() => navigate('/assignments')} className="btn btn-primary mt-2">View Assignments</button>
                             </div>
                             <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0) 100%)' }}>
-                                <h3>ðŸŽ“ Certificates</h3>
+                                <h3>Certificates</h3>
                                 <p className="text-muted mt-1">View and download your participation certificates.</p>
                                 <button onClick={() => setShowCertModal(true)} className="btn btn-primary mt-2">View Certificates</button>
                             </div>
@@ -390,12 +390,10 @@ const Dashboard: React.FC = () => {
                                 onClick={() => setShowCertModal(false)}
                                 style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer', zIndex: 10 }}
                             >
-                                âœ•
+                                x
                             </button>
 
-                            <h2 className="mb-2" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <span>ðŸŽ“</span> Your Certificates
-                            </h2>
+                            <h2 className="mb-2">Your Certificates</h2>
 
                             {pastSessions.filter(session => !hiddenCerts.includes(session._id)).length === 0 ? (
                                 <p className="text-muted">No certificates found. Join sessions to earn them!</p>

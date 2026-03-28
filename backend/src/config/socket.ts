@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 
 let io: SocketServer;
 
-const socketMap = new Map<string, { userId: string; sessionCode: string }>();
+const socketMap = new Map<string, { userId: string; sessionCode: string; role: 'teacher' | 'student' }>();
 
 const stringifyId = (value: any): string => {
     if (!value) return '';
@@ -17,8 +17,31 @@ const stringifyId = (value: any): string => {
 
 const normalizeSender = (sender: any) => ({
     id: stringifyId(sender?.id) || stringifyId(sender?._id),
-    name: sender?.name || 'Participant'
+    name: sender?.name || 'Participant',
+    role: sender?.role === 'teacher' ? 'teacher' : 'student'
 });
+
+const emitRoomPresence = (sessionCode: string) => {
+    const teacherIds = new Set<string>();
+    const studentIds = new Set<string>();
+
+    socketMap.forEach((value) => {
+        if (value.sessionCode !== sessionCode) return;
+
+        if (value.role === 'teacher') {
+            teacherIds.add(value.userId);
+            return;
+        }
+
+        studentIds.add(value.userId);
+    });
+
+    io.to(sessionCode).emit('room_presence_update', {
+        teachers: teacherIds.size,
+        students: studentIds.size,
+        total: teacherIds.size + studentIds.size
+    });
+};
 
 export const initSocket = (server: HttpServer) => {
     io = new SocketServer(server, {
@@ -40,27 +63,32 @@ export const initSocket = (server: HttpServer) => {
             if (user?._id) {
                 socketMap.set(socket.id, {
                     userId: stringifyId(user._id),
-                    sessionCode
+                    sessionCode,
+                    role: user.role === 'teacher' ? 'teacher' : 'student'
                 });
 
                 try {
-                    await Session.findOneAndUpdate(
-                        { code: sessionCode },
-                        {
-                            $push: {
-                                attendance: {
-                                    student: user._id,
-                                    name: user.name,
-                                    email: user.email,
-                                    joinTime: new Date()
+                    if (user.role !== 'teacher') {
+                        await Session.findOneAndUpdate(
+                            { code: sessionCode },
+                            {
+                                $push: {
+                                    attendance: {
+                                        student: user._id,
+                                        name: user.name,
+                                        email: user.email,
+                                        joinTime: new Date()
+                                    }
                                 }
                             }
-                        }
-                    );
+                        );
+                    }
                 } catch (error) {
                     console.error('Error recording attendance:', error);
                 }
             }
+
+            emitRoomPresence(sessionCode);
         });
 
         socket.on('leave_session', async (sessionCode: string) => {
@@ -84,6 +112,7 @@ export const initSocket = (server: HttpServer) => {
             const chatMessage = {
                 senderId: senderObjectId,
                 senderName: normalizedSender.name,
+                senderRole: normalizedSender.role,
                 message: trimmedMessage,
                 createdAt: new Date()
             };
@@ -99,6 +128,7 @@ export const initSocket = (server: HttpServer) => {
                 io.to(sessionCode).emit('session_message', {
                     senderId: normalizedSender.id,
                     senderName: normalizedSender.name,
+                    senderRole: normalizedSender.role,
                     message: trimmedMessage,
                     createdAt: chatMessage.createdAt.toISOString()
                 });
@@ -137,6 +167,7 @@ const handleUserLeave = async (socketId: string) => {
     }
 
     socketMap.delete(socketId);
+    emitRoomPresence(data.sessionCode);
 };
 
 export const getIO = () => {

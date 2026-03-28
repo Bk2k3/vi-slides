@@ -4,10 +4,11 @@ import { questionService } from '../services/questionService';
 interface QuestionInputProps {
     sessionId: string;
     sessionStatus?: string;
+    isTeacher?: boolean;
     onQuestionSubmitted?: (question: any) => void;
 }
 
-const QuestionInput: React.FC<QuestionInputProps> = ({ sessionId, sessionStatus, onQuestionSubmitted }) => {
+const QuestionInput: React.FC<QuestionInputProps> = ({ sessionId, sessionStatus, isTeacher = false, onQuestionSubmitted }) => {
     const [content, setContent] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -30,7 +31,7 @@ const QuestionInput: React.FC<QuestionInputProps> = ({ sessionId, sessionStatus,
                 onQuestionSubmitted?.(response.data);
             }
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to submit question');
+            setError(err.response?.data?.message || `Failed to send ${isTeacher ? 'answer' : 'question'}`);
         } finally {
             setLoading(false);
         }
@@ -47,11 +48,11 @@ const QuestionInput: React.FC<QuestionInputProps> = ({ sessionId, sessionStatus,
                 <div className="form-group" style={{ marginBottom: '0.75rem' }}>
                     <textarea
                         className="form-input"
-                        placeholder={sessionStatus === 'ended' ? 'Session has ended' : 'Ask a question...'}
+                        placeholder={sessionStatus === 'ended' ? 'Session has ended' : isTeacher ? 'Share an answer...' : 'Ask a question...'}
                         rows={3}
                         style={{
                             resize: 'none',
-                            background: 'rgba(255,255,255,0.05)',
+                            background: isTeacher ? 'rgba(13, 148, 136, 0.08)' : 'rgba(255,255,255,0.05)',
                             borderRadius: 'var(--radius-lg)',
                             transition: 'all 0.3s ease'
                         }}
@@ -73,10 +74,14 @@ const QuestionInput: React.FC<QuestionInputProps> = ({ sessionId, sessionStatus,
                     <button
                         type="submit"
                         className="btn btn-primary"
-                        style={{ padding: '0.6rem 1.5rem', borderRadius: 'var(--radius-full)' }}
+                        style={{
+                            padding: '0.6rem 1.5rem',
+                            borderRadius: 'var(--radius-full)',
+                            background: isTeacher ? 'linear-gradient(135deg, #0d9488, #0f766e)' : 'var(--gradient-primary)'
+                        }}
                         disabled={isDisabled || !content.trim()}
                     >
-                        {loading ? <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div> : 'Send Question'}
+                        {loading ? <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div> : isTeacher ? 'Send Answer' : 'Send Question'}
                     </button>
                 </div>
             </form>

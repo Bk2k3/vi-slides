@@ -21,7 +21,6 @@ const GuestJoinForm: React.FC = () => {
         const fetchSessionInfo = async () => {
             if (!code) return;
             try {
-                // Use public endpoint for guests
                 const response = await guestService.getPublicSessionInfo(code);
                 if (response.success) {
                     setSessionTitle(response.data.title);
@@ -60,11 +59,8 @@ const GuestJoinForm: React.FC = () => {
             });
 
             if (response.success) {
-                // Success! Stay on page, show message, clear question
                 setSuccess(true);
                 setFormData(prev => ({ ...prev, question: '' }));
-
-                // Hide success message after 3 seconds
                 setTimeout(() => setSuccess(false), 3000);
             }
         } catch (err: any) {
@@ -104,7 +100,7 @@ const GuestJoinForm: React.FC = () => {
 
                 {success && (
                     <div className="alert alert-success slide-in" style={{ marginBottom: '1rem', padding: '0.5rem', fontSize: '0.85rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '6px' }}>
-                        ✅ Sent! Ask another?
+                        Sent! Ask another question?
                     </div>
                 )}
 

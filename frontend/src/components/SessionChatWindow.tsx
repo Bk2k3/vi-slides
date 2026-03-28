@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 export interface SessionChatMessage {
     senderId?: string;
     senderName: string;
+    senderRole?: 'teacher' | 'student';
     message: string;
     createdAt: string;
 }
@@ -10,11 +11,12 @@ export interface SessionChatMessage {
 interface SessionChatWindowProps {
     messages: SessionChatMessage[];
     currentUserId?: string;
+    teacherUserId?: string;
     disabled?: boolean;
     onSendMessage: (message: string) => Promise<void> | void;
 }
 
-const SessionChatWindow: React.FC<SessionChatWindowProps> = ({ messages, currentUserId, disabled = false, onSendMessage }) => {
+const SessionChatWindow: React.FC<SessionChatWindowProps> = ({ messages, currentUserId, teacherUserId, disabled = false, onSendMessage }) => {
     const [draft, setDraft] = useState('');
     const [sending, setSending] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -85,6 +87,14 @@ const SessionChatWindow: React.FC<SessionChatWindowProps> = ({ messages, current
                 ) : (
                     messages.map((item, index) => {
                         const isMine = !!currentUserId && item.senderId === currentUserId;
+                        const isTeacherMessage = item.senderRole === 'teacher' || (!!teacherUserId && item.senderId === teacherUserId);
+                        const bubbleBackground = isTeacherMessage
+                            ? 'linear-gradient(135deg, rgba(13, 148, 136, 0.95), rgba(15, 118, 110, 0.95))'
+                            : isMine
+                                ? 'var(--gradient-primary)'
+                                : 'rgba(255,255,255,0.06)';
+                        const bubbleColor = isTeacherMessage || isMine ? 'white' : 'var(--color-text)';
+                        const bubbleBorder = isTeacherMessage ? '1px solid rgba(94, 234, 212, 0.22)' : '1px solid transparent';
 
                         return (
                             <div
@@ -92,14 +102,16 @@ const SessionChatWindow: React.FC<SessionChatWindowProps> = ({ messages, current
                                 style={{
                                     alignSelf: isMine ? 'flex-end' : 'flex-start',
                                     maxWidth: '78%',
-                                    background: isMine ? 'var(--gradient-primary)' : 'rgba(255,255,255,0.06)',
-                                    color: isMine ? 'white' : 'var(--color-text)',
+                                    background: bubbleBackground,
+                                    color: bubbleColor,
+                                    border: bubbleBorder,
                                     borderRadius: isMine ? '18px 18px 6px 18px' : '18px 18px 18px 6px',
                                     padding: '0.85rem 1rem'
                                 }}
                             >
-                                <div style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.35rem', fontWeight: 600 }}>
+                                <div style={{ fontSize: '0.75rem', opacity: 0.88, marginBottom: '0.35rem', fontWeight: 600 }}>
                                     {isMine ? 'You' : item.senderName}
+                                    {isTeacherMessage ? ' - Teacher' : ''}
                                 </div>
                                 <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{item.message}</div>
                                 <div style={{ fontSize: '0.68rem', opacity: 0.7, marginTop: '0.4rem', textAlign: 'right' }}>

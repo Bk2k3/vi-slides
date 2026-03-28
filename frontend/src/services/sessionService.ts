@@ -17,6 +17,7 @@ export interface Session {
     chatMessages?: {
         senderId?: string;
         senderName: string;
+        senderRole?: 'teacher' | 'student';
         message: string;
         createdAt: string;
     }[];
