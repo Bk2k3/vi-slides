@@ -1,4 +1,5 @@
 import api from './api';
+import type { Question } from './questionService';
 
 export interface Session {
     _id: string;
@@ -24,6 +25,7 @@ export interface Session {
     status: 'active' | 'ended';
     endedAt?: string;
     createdAt: string;
+    questions?: Question[];
 }
 
 export interface CreateSessionData {
@@ -80,6 +82,12 @@ export const sessionService = {
     // Get student session history
     getStudentSessions: async (): Promise<{ success: boolean; data: any[] }> => {
         const response = await api.get('/sessions/student/history');
+        return response.data;
+    },
+
+    // Get ended session history with questions and answers
+    getSessionHistory: async (): Promise<{ success: boolean; data: Session[] }> => {
+        const response = await api.get('/sessions/history');
         return response.data;
     }
 };

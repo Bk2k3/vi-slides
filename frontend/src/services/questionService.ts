@@ -12,6 +12,8 @@ export interface Question {
     session: string;
     status: 'active' | 'archived';
     analysisStatus: 'not_requested' | 'pending' | 'completed' | 'failed';
+    teacherAnswer?: string;
+    teacherAnsweredAt?: string;
     createdAt: string;
 }
 
@@ -36,6 +38,12 @@ export const questionService = {
     // Update a question
     updateQuestion: async (id: string, content: string): Promise<{ success: boolean; data: Question }> => {
         const response = await api.put(`/questions/${id}`, { content });
+        return response.data;
+    },
+
+    // Add or update a teacher answer
+    answerQuestion: async (id: string, answer: string): Promise<{ success: boolean; data: Question }> => {
+        const response = await api.patch(`/questions/${id}/answer`, { answer });
         return response.data;
     },
 

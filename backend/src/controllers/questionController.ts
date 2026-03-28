@@ -68,6 +68,50 @@ export const getSessionQuestions = async (req: Request, res: Response): Promise<
     }
 };
 
+// @desc    Answer a question
+// @route   PATCH /api/questions/:id/answer
+// @access  Private (Teacher only)
+export const answerQuestion = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { answer } = req.body;
+        const question = await Question.findById(req.params.id).populate('session', 'code teacher');
+
+        if (!question) {
+            res.status(404).json({ success: false, message: 'Question not found' });
+            return;
+        }
+
+        const session = question.session as any;
+        if (!session?.teacher || session.teacher.toString() !== req.user?._id.toString()) {
+            res.status(403).json({ success: false, message: 'Not authorized to answer this question' });
+            return;
+        }
+
+        if (!answer || !answer.trim()) {
+            res.status(400).json({ success: false, message: 'Answer cannot be empty' });
+            return;
+        }
+
+        question.teacherAnswer = answer.trim();
+        question.teacherAnsweredAt = new Date();
+        await question.save();
+
+        const updatedQuestion = await Question.findById(question._id).populate('user', 'name');
+        emitToSession(session.code, 'update_question', updatedQuestion);
+
+        res.status(200).json({
+            success: true,
+            data: updatedQuestion
+        });
+    } catch (error) {
+        console.error('Answer question error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error answering question'
+        });
+    }
+};
+
 // @desc    Update a question
 // @route   PUT /api/questions/:id
 // @access  Private (Owner only)

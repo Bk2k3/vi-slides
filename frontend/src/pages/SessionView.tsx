@@ -311,14 +311,15 @@ const SessionView: React.FC = () => {
 
                         {activeTab === 'questions' ? (
                             <>
-                                <QuestionInput
-                                    sessionId={session._id}
-                                    sessionStatus={session.status}
-                                    isTeacher={isTeacher}
-                                    onQuestionSubmitted={(question) => {
-                                        setQuestions(prev => prev.some(item => item._id === question._id) ? prev : [question, ...prev]);
-                                    }}
-                                />
+                                {!isTeacher && (
+                                    <QuestionInput
+                                        sessionId={session._id}
+                                        sessionStatus={session.status}
+                                        onQuestionSubmitted={(question) => {
+                                            setQuestions(prev => prev.some(item => item._id === question._id) ? prev : [question, ...prev]);
+                                        }}
+                                    />
+                                )}
 
                                 {sortedQuestions.length === 0 ? (
                                     <div className="glass-card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>

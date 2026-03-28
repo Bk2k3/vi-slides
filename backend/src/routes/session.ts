@@ -7,7 +7,8 @@ import {
     endSession,
     getActiveSession,
     leaveSession,
-    getStudentSessions
+    getStudentSessions,
+    getSessionHistory
 } from '../controllers/sessionController';
 import { protect, authorize } from '../middleware/auth';
 
@@ -23,6 +24,10 @@ router.get('/current/active', getActiveSession);
 // @route   GET /api/sessions/student/history
 // @desc    Get student session history
 router.get('/student/history', getStudentSessions);
+
+// @route   GET /api/sessions/history
+// @desc    Get past session history for current user
+router.get('/history', getSessionHistory);
 
 // @route   POST /api/sessions
 // @desc    Create a session (Teacher)

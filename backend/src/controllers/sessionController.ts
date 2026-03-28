@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import Session from '../models/Session';
+import Question from '../models/Question';
 import { emitToSession } from '../config/socket';
 
 // Helper to generate a unique 6-character code
@@ -263,6 +264,63 @@ export const getStudentSessions = async (req: Request, res: Response): Promise<v
         res.status(500).json({
             success: false,
             message: 'Server error fetching student sessions'
+        });
+    }
+};
+
+// @desc    Get session history with questions and answers
+// @route   GET /api/sessions/history
+// @access  Private
+export const getSessionHistory = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?._id;
+        const isTeacher = req.user?.role === 'Teacher';
+
+        const sessionQuery = isTeacher
+            ? { teacher: userId, status: 'ended' }
+            : { students: userId, status: 'ended' };
+
+        const sessions = await Session.find(sessionQuery)
+            .populate('teacher', 'name')
+            .sort({ endedAt: -1, createdAt: -1 })
+            .lean();
+
+        if (sessions.length === 0) {
+            res.status(200).json({
+                success: true,
+                data: []
+            });
+            return;
+        }
+
+        const sessionIds = sessions.map(session => session._id);
+        const questions = await Question.find({ session: { $in: sessionIds } })
+            .populate('user', 'name')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const questionsBySession = new Map<string, any[]>();
+        questions.forEach((question) => {
+            const key = question.session.toString();
+            const existingQuestions = questionsBySession.get(key) || [];
+            existingQuestions.push(question);
+            questionsBySession.set(key, existingQuestions);
+        });
+
+        const history = sessions.map((session) => ({
+            ...session,
+            questions: questionsBySession.get(session._id.toString()) || []
+        }));
+
+        res.status(200).json({
+            success: true,
+            data: history
+        });
+    } catch (error) {
+        console.error('Get session history error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error fetching session history'
         });
     }
 };

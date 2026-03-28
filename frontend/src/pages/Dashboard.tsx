@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { sessionService } from '../services/sessionService';
+import { sessionService, Session } from '../services/sessionService';
 import { useTheme } from '../contexts/ThemeContext';
 import CertificateCard from '../components/CertificateCard';
+import SessionHistorySection from '../components/SessionHistorySection';
 import Toast from '../components/Toast';
 
 const Dashboard: React.FC = () => {
@@ -16,7 +17,7 @@ const Dashboard: React.FC = () => {
     const [sessionTitle, setSessionTitle] = useState('');
     const [error, setError] = useState('');
     const [activeSession, setActiveSession] = useState<any>(null);
-    const [pastSessions, setPastSessions] = useState<any[]>([]);
+    const [pastSessions, setPastSessions] = useState<Session[]>([]);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showCertModal, setShowCertModal] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -40,11 +41,9 @@ const Dashboard: React.FC = () => {
                     }
                 }
 
-                if (!isTeacher) {
-                    const historyResponse = await sessionService.getStudentSessions();
-                    if (historyResponse.success) {
-                        setPastSessions(historyResponse.data);
-                    }
+                const historyResponse = await sessionService.getSessionHistory();
+                if (historyResponse.success) {
+                    setPastSessions(historyResponse.data);
                 }
             } catch (err) {
                 console.error('Dashboard load error:', err);
@@ -358,11 +357,6 @@ const Dashboard: React.FC = () => {
                                     <button type="submit" className="btn btn-primary">Join</button>
                                 </form>
                             </div>
-                            <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(20, 184, 166, 0) 100%)' }}>
-                                <h3>Assignments</h3>
-                                <p className="text-muted mt-1">View and submit your assignments.</p>
-                                <button onClick={() => navigate('/assignments')} className="btn btn-primary mt-2">View Assignments</button>
-                            </div>
                             <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0) 100%)' }}>
                                 <h3>Certificates</h3>
                                 <p className="text-muted mt-1">View and download your participation certificates.</p>
@@ -371,6 +365,8 @@ const Dashboard: React.FC = () => {
                         </>
                     )}
                 </div>
+
+                <SessionHistorySection sessions={pastSessions} isTeacher={isTeacher} />
 
                 {showCertModal && (
                     <div className="modal-overlay fade-in" style={{

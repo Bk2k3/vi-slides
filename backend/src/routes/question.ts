@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import {
     createQuestion,
     getSessionQuestions,
+    answerQuestion,
     updateQuestion,
     deleteQuestion
 } from '../controllers/questionController';
@@ -36,6 +37,16 @@ router.put(
         body('content').trim().notEmpty().withMessage('Question content cannot be empty'),
     ],
     updateQuestion
+);
+
+// @route   PATCH /api/questions/:id/answer
+// @desc    Answer a question
+router.patch(
+    '/:id/answer',
+    [
+        body('answer').trim().notEmpty().withMessage('Answer cannot be empty'),
+    ],
+    answerQuestion
 );
 
 // @route   DELETE /api/questions/:id
